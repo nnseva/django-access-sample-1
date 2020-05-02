@@ -49,23 +49,40 @@ class AccessUserAdmin(AccessControlMixin, UserAdmin):
             ret.append((nm, pars))
         return ret
 
+    def _fieldsets_only(self, fieldsets, only):
+        ret = []
+        for nm, params in fieldsets:
+            if 'fields' not in params:
+                ret.append((nm, params))
+                continue
+            fields = []
+            for f in params['fields']:
+                if f in only:
+                    fields.append(f)
+            pars = {}
+            pars.update(params)
+            pars['fields'] = fields
+            ret.append((nm, pars))
+        return ret
+
     def get_fieldsets(self, request, obj=None):
         fieldsets = list(super(AccessUserAdmin, self).get_fieldsets(request, obj)) or []
-        exclude = ['groups', 'user_permissions']
-        if not request.user.is_superuser:
-            exclude = ['is_superuser', 'groups', 'user_permissions']
-            if obj and obj.pk != request.user.pk:
-                exclude = ['password', 'email', 'groups', 'user_permissions']
-        return self._fieldsets_exclude(fieldsets, exclude)
+        fields = self.get_fields(request, obj=obj)
+        return self._fieldsets_only(fieldsets, fields)
 
     def get_fields(self, request, obj=None):
         fields = list(super(AccessUserAdmin, self).get_fields(request, obj)) or []
-        exclude = ['groups', 'user_permissions']
+        exclude = ['is_staff', 'groups', 'user_permissions']
         if not request.user.is_superuser:
-            exclude = ['is_superuser', 'groups', 'user_permissions']
+            exclude = ['is_staff', 'is_superuser', 'groups', 'user_permissions']
             if obj and obj.pk != request.user.pk:
-                exclude = ['password', 'email', 'groups', 'user_permissions']
+                exclude = ['is_staff', 'password', 'email', 'groups', 'user_permissions']
         return [f for f in fields if not f in exclude]
+
+    def save_model(self, request, obj, form, change):
+        obj.is_staff = True
+        return super(AccessUserAdmin, self).save_model(request, obj, form, change)
+
 
 @admin.register(Project)
 class ProjectAdmin(AccessModelAdmin):
